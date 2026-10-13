@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="zawa_green">#FF19B67A</color>
+    <color name="zawa_green_dark">#FF0F8F5E</color>
+    <color name="zawa_bg">#FFF7F8FA</color>
+    <color name="zawa_bg_dark">#FF101114</color>
+</resources>
