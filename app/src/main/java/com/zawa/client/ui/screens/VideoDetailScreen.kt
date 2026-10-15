@@ -76,14 +76,21 @@ fun VideoDetailScreen(videoId: String, onBack: () -> Unit, onUser: (Long) -> Uni
     }
 
     val player = remember { ExoPlayer.Builder(ctx).build() }
-    DisposableEffect(video?.playableUrl) {
+    // Release the player only when the screen leaves composition. Previously the
+    // release was tied to the media-URL key, so as soon as the video finished
+    // loading (url: null -> "...mp4") the old effect disposed and released the
+    // player, then the new effect prepared media on a released player — leaving
+    // the controller stuck at 0:00.
+    DisposableEffect(Unit) {
+        onDispose { player.release() }
+    }
+    LaunchedEffect(video?.playableUrl) {
         val url = video?.playableUrl
         if (!url.isNullOrBlank()) {
             player.setMediaItem(MediaItem.fromUri(url))
             player.prepare()
             player.playWhenReady = true
         }
-        onDispose { player.release() }
     }
 
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
