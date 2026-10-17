@@ -4,6 +4,10 @@ object Routes {
     const val VIDEOS = "videos"
     const val ARTICLES = "articles"
     const val SEARCH = "search"
+    const val ACCOUNT = "account"
+
+    const val LOGIN = "login"
+    const val UPLOAD = "upload"
 
     const val VIDEO = "video/{id}"
     fun video(id: String) = "video/$id"

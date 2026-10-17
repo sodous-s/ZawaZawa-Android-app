@@ -23,9 +23,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,6 +35,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.zawa.client.data.Article
+import com.zawa.client.data.AuthStore
 import com.zawa.client.data.UserProfile
 import com.zawa.client.data.ZawaRepo
 import com.zawa.client.ui.components.Avatar
@@ -51,21 +55,47 @@ import com.zawa.client.ui.components.StatRow
 import com.zawa.client.ui.components.VerificationChip
 import com.zawa.client.ui.components.VideoThumb
 import com.zawa.client.ui.components.countFmt
+import kotlinx.coroutines.launch
 
 @Composable
-fun ProfileScreen(uid: Long, onBack: () -> Unit, onVideo: (String) -> Unit, onArticle: (String) -> Unit) {
+fun ProfileScreen(uid: Long, onBack: () -> Unit, onVideo: (String) -> Unit, onArticle: (String) -> Unit, onLogin: () -> Unit) {
+    val scope = rememberCoroutineScope()
     var profile by remember { mutableStateOf<UserProfile?>(null) }
     var articles by remember { mutableStateOf<List<Article>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    var following by remember { mutableStateOf(false) }
+    var followerCount by remember { mutableStateOf(0L) }
 
-    LaunchedEffect(uid) {
+    LaunchedEffect(uid, AuthStore.user?.uid) {
         loading = true; error = null
         try {
-            profile = ZawaRepo.user(uid)
+            val p = ZawaRepo.user(uid)
+            profile = p
             articles = runCatching { ZawaRepo.userArticles(uid) }.getOrNull() ?: emptyList()
+            followerCount = p.user.followerCount
+            following = p.user.isFollowing ?: false
+            if (AuthStore.isLoggedIn && AuthStore.user?.uid != uid) {
+                runCatching { ZawaRepo.followStatus(uid) }.getOrNull()?.let { following = it }
+            }
         } catch (e: Exception) { error = e.message ?: "加载失败" }
         loading = false
+    }
+
+    fun toggleFollow() {
+        if (!AuthStore.isLoggedIn) { onLogin(); return }
+        val prev = following; val prevCount = followerCount
+        val target = !prev
+        following = target
+        followerCount = (prevCount + if (target) 1 else -1).coerceAtLeast(0)
+        scope.launch {
+            val res = runCatching { ZawaRepo.setFollow(uid, target) }.getOrNull()
+            if (res == null) { following = prev; followerCount = prevCount }
+            else if (res != target) {
+                following = res
+                followerCount = (prevCount + if (res) 1 else -1).coerceAtLeast(0)
+            }
+        }
     }
 
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -79,7 +109,15 @@ fun ProfileScreen(uid: Long, onBack: () -> Unit, onVideo: (String) -> Unit, onAr
             else -> {
                 val p = profile!!
                 LazyColumn(Modifier.fillMaxSize()) {
-                    item { ProfileHeader(p) }
+                    item {
+                        ProfileHeader(
+                            p = p,
+                            showFollow = AuthStore.isLoggedIn && AuthStore.user?.uid != uid,
+                            following = following,
+                            followerCount = followerCount,
+                            onToggleFollow = { toggleFollow() }
+                        )
+                    }
                     val vids = p.videos
                     if (vids.isNotEmpty()) {
                         item {
@@ -113,7 +151,13 @@ fun ProfileScreen(uid: Long, onBack: () -> Unit, onVideo: (String) -> Unit, onAr
 }
 
 @Composable
-private fun ProfileHeader(p: UserProfile) {
+private fun ProfileHeader(
+    p: UserProfile,
+    showFollow: Boolean,
+    following: Boolean,
+    followerCount: Long,
+    onToggleFollow: () -> Unit
+) {
     val u = p.user
     Column(Modifier.fillMaxWidth().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -127,13 +171,21 @@ private fun ProfileHeader(p: UserProfile) {
                 }
                 Text("UID: ${u.uid}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
             }
+            if (showFollow) {
+                Spacer(Modifier.weight(1f))
+                if (following) {
+                    OutlinedButton(onClick = onToggleFollow) { Text("已关注") }
+                } else {
+                    Button(onClick = onToggleFollow) { Text("关注") }
+                }
+            }
         }
         if (!u.bio.isNullOrBlank()) {
             Text(u.bio ?: "", fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.padding(top = 12.dp))
         }
         Spacer(Modifier.height(10.dp))
         Row {
-            Stat(u.followerCount, "粉丝"); Spacer(Modifier.width(20.dp))
+            Stat(followerCount, "粉丝"); Spacer(Modifier.width(20.dp))
             Stat(u.followingCount, "关注")
         }
         Spacer(Modifier.height(6.dp))

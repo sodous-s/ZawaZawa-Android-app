@@ -37,7 +37,9 @@ data class Video(
     @SerialName("recommendation_session") val recommendationSession: String? = null,
     @SerialName("recommendation_next_offset") val recommendationNextOffset: Long? = null
 ) {
-    val playableUrl: String? get() = streamUrl ?: externalPlayerUrl
+    // stream_url 可能是相对路径（如 /api/s3/object?key=...），必须拼成绝对地址，
+    // 否则 ExoPlayer 拿到相对 URI 无法解析，时间轴会永远停在 0:00。
+    val playableUrl: String? get() = absUrl(streamUrl) ?: absUrl(externalPlayerUrl)
     val coverAbs: String? get() = absUrl(coverUrl) ?: externalCoverUrl
     val authorAvatarAbs: String? get() = absUrl(authorGravatarUrl)
 }

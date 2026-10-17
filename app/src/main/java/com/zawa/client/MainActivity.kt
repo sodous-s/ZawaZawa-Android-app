@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Article
-import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Icon
@@ -18,20 +18,27 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.zawa.client.data.AuthStore
+import com.zawa.client.data.ZawaRepo
 import com.zawa.client.ui.Routes
+import com.zawa.client.ui.screens.AccountScreen
 import com.zawa.client.ui.screens.ArticleListScreen
 import com.zawa.client.ui.screens.ArticleReaderScreen
+import com.zawa.client.ui.screens.LoginScreen
 import com.zawa.client.ui.screens.ProfileScreen
 import com.zawa.client.ui.screens.SearchScreen
 import com.zawa.client.ui.screens.TagScreen
+import com.zawa.client.ui.screens.UploadScreen
 import com.zawa.client.ui.screens.VideoDetailScreen
 import com.zawa.client.ui.screens.VideoFeedScreen
 import com.zawa.client.ui.theme.ZawaTheme
@@ -49,14 +56,29 @@ private data class BottomTab(val route: String, val label: String, val icon: and
 @Composable
 private fun AppRoot() {
     val nav = rememberNavController()
+    val ctx = LocalContext.current
     val tabs = listOf(
         BottomTab(Routes.VIDEOS, "视频", Icons.Default.VideoLibrary),
         BottomTab(Routes.ARTICLES, "专栏", Icons.Default.Article),
-        BottomTab(Routes.SEARCH, "搜索", Icons.Default.Search)
+        BottomTab(Routes.SEARCH, "搜索", Icons.Default.Search),
+        BottomTab(Routes.ACCOUNT, "我的", Icons.Default.Person)
     )
     val backStack by nav.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
     val showBar = currentRoute in tabs.map { it.route }
+
+    // Restore the persisted session cookie on cold start.
+    LaunchedEffect(Unit) {
+        AuthStore.init(ctx)
+        if (AuthStore.cookie().isNotBlank()) {
+            val me = runCatching { ZawaRepo.me() }.getOrNull()
+            if (me != null) AuthStore.updateUser(me) else AuthStore.saveCookie("")
+        }
+    }
+
+    fun goLogin() {
+        nav.navigate(Routes.LOGIN) { launchSingleTop = true }
+    }
 
     Scaffold(
         bottomBar = {
@@ -100,6 +122,22 @@ private fun AppRoot() {
             composable(Routes.SEARCH) {
                 SearchScreen(onTag = { nav.navigate(Routes.tag(it)) })
             }
+            composable(Routes.ACCOUNT) {
+                AccountScreen(
+                    onLogin = { goLogin() },
+                    onVideo = { nav.navigate(Routes.video(it)) },
+                    onUpload = { nav.navigate(Routes.UPLOAD) }
+                )
+            }
+            composable(Routes.LOGIN) {
+                LoginScreen(
+                    onBack = { nav.popBackStack() },
+                    onLoggedIn = { nav.popBackStack() }
+                )
+            }
+            composable(Routes.UPLOAD) {
+                UploadScreen(onBack = { nav.popBackStack() })
+            }
             composable(
                 route = Routes.VIDEO,
                 arguments = listOf(navArgument("id") { type = NavType.StringType })
@@ -108,7 +146,8 @@ private fun AppRoot() {
                 VideoDetailScreen(
                     videoId = id,
                     onBack = { nav.popBackStack() },
-                    onUser = { nav.navigate(Routes.user(it)) }
+                    onUser = { nav.navigate(Routes.user(it)) },
+                    onLogin = { goLogin() }
                 )
             }
             composable(
@@ -131,7 +170,8 @@ private fun AppRoot() {
                     uid = uid,
                     onBack = { nav.popBackStack() },
                     onVideo = { nav.navigate(Routes.video(it)) },
-                    onArticle = { nav.navigate(Routes.article(it)) }
+                    onArticle = { nav.navigate(Routes.article(it)) },
+                    onLogin = { goLogin() }
                 )
             }
             composable(

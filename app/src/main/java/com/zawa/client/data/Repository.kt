@@ -36,4 +36,33 @@ object ZawaRepo {
 
     suspend fun searchTags(q: String): List<TagHit> =
         withContext(Dispatchers.IO) { api.searchTags(q) }
+
+    // --- authenticated (cookie session) ---
+
+    suspend fun me(cookieOverride: String? = null): ZawaUser =
+        withContext(Dispatchers.IO) { api.fetchMe(cookieOverride) }
+
+    suspend fun myVideos(): List<Video> =
+        withContext(Dispatchers.IO) { api.fetchMyVideos() }
+
+    suspend fun likeVideo(id: String): Boolean =
+        withContext(Dispatchers.IO) { api.likeVideo(id) }
+
+    suspend fun videoLiked(id: String): Boolean =
+        withContext(Dispatchers.IO) { api.videoLiked(id) }
+
+    suspend fun favoriteVideo(id: String): Boolean =
+        withContext(Dispatchers.IO) { api.favoriteVideo(id) }
+
+    suspend fun videoFavorited(id: String): Boolean =
+        withContext(Dispatchers.IO) { api.videoFavorited(id) }
+
+    suspend fun setFollow(uid: Long, follow: Boolean): Boolean =
+        withContext(Dispatchers.IO) { api.setFollow(uid, follow) }
+
+    suspend fun followStatus(uid: Long): Boolean =
+        withContext(Dispatchers.IO) { api.followStatus(uid) }
+
+    suspend fun logout() =
+        withContext(Dispatchers.IO) { api.logout() }
 }
